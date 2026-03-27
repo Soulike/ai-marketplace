@@ -7,6 +7,15 @@ description: "Automate the GitHub Copilot PR review-and-fix loop. Use this skill
 
 Automatically request a GitHub Copilot review on a PR, then triage and fix every comment in a loop until the PR is clean.
 
+## Critical Rule
+
+NEVER merge the PR. The PR must always be merged by the user manually. This skill only handles review feedback — the merge decision belongs to the human.
+
+## Prerequisites
+
+- `gh` CLI authenticated with access to the repository
+- The repository must have GitHub Copilot code review enabled
+
 ## Workflow
 
 ### Overview
@@ -64,11 +73,28 @@ gh pr edit <PR> --add-reviewer @copilot
 
 This tells GitHub to run a Copilot code review on the PR. Copilot takes some time to post its review, so you need to poll.
 
-### Step 5 — Poll for Copilot Comments
+### Step 5 — Poll for Copilot Review Completion
 
-Each Copilot review produces exactly one **issue comment** (not a review comment) on the PR that summarizes the review and states how many review comments it left. Poll for this summary comment to know when Copilot is done and whether there's anything to fix.
+Copilot review takes time. Poll the reviews API until the review state is no longer `PENDING`.
 
-**Polling for the summary comment:**
+**Important:** Copilot uses **different logins** in different APIs:
+- In the **reviews API**: `copilot-pull-request-reviewer[bot]`
+- In the **comments API**: `Copilot` (capital C)
+
+**Polling for review completion via the Reviews API:**
+
+```bash
+gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
+  --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer[bot]")] | last | .state'
+```
+
+Possible terminal states: `COMMENTED`, `APPROVED`, `CHANGES_REQUESTED`.
+
+**Polling strategy:**
+- Wait 15 seconds between checks.
+- After 5 minutes with no review appearing, inform the user that Copilot may not be enabled for the repo. Stop.
+
+**Also check the summary issue comment** — each Copilot review produces exactly one **issue comment** on the PR that summarizes the review and states how many review comments it left:
 
 ```bash
 gh api repos/{owner}/{repo}/issues/<PR>/comments --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer[bot]" or (.user.login | test("copilot"; "i")))]'
@@ -76,18 +102,38 @@ gh api repos/{owner}/{repo}/issues/<PR>/comments --jq '[.[] | select(.user.login
 
 Keep track of how many Copilot summary comments you've already seen. Poll until a **new** one appears (i.e., the count increases).
 
-**Polling strategy:**
-- Wait 15 seconds between checks.
-- After 5 minutes with no new summary comment, assume Copilot has finished (or has nothing to say). Stop.
+**Once the review is complete:**
 
-**Once a new summary comment appears:**
-
-1. Read it to find out how many review comments Copilot left.
-2. If the summary says 0 review comments, the PR is clean — report success and stop.
-3. Otherwise, fetch the review comments:
+1. If the review state is `APPROVED` and the summary says 0 review comments, the PR is clean — report success and stop.
+2. Otherwise, fetch the inline review comments:
    ```bash
-   gh api repos/{owner}/{repo}/pulls/<PR>/comments --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer[bot]" or (.user.login | test("copilot"; "i")))]'
+   gh api repos/{owner}/{repo}/pulls/<PR>/comments \
+     --jq '[.[] | select(.user.login == "Copilot") | {id, path, line, body}]'
    ```
+3. To get thread IDs (needed for resolving threads later), use GraphQL:
+   ```graphql
+   query {
+     repository(owner: "<OWNER>", name: "<REPO>") {
+       pullRequest(number: <PR>) {
+         reviewThreads(first: 100) {
+           nodes {
+             id
+             isResolved
+             comments(first: 1) {
+               nodes {
+                 databaseId
+                 body
+                 path
+                 author { login }
+               }
+             }
+           }
+         }
+       }
+     }
+   }
+   ```
+   Filter threads where `author.login` is `copilot-pull-request-reviewer` and `isResolved` is `false`.
 4. Filter to only the **new** review comments (ones you haven't already processed in a previous iteration) and proceed to Step 6.
 
 ### Step 6 — Triage and Fix Each Comment
@@ -130,7 +176,18 @@ For every new Copilot comment, decide whether it warrants a code change. Use you
    gh api repos/{owner}/{repo}/pulls/comments/<comment-id>/replies \
      -f body="Fixed: <brief explanation of the change>"
    ```
-5. **Resolve the review thread** with GitHub API.
+5. **Resolve the review thread** using GraphQL:
+   ```graphql
+   mutation {
+     resolveReviewThread(input: {threadId: "<THREAD_ID>"}) {
+       thread { isResolved }
+     }
+   }
+   ```
+   The `THREAD_ID` is obtained from the GraphQL query in Step 5. Use `gh api graphql` to execute:
+   ```bash
+   gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<THREAD_ID>"}) { thread { isResolved } } }'
+   ```
 
 #### For each comment you decide to skip:
 
