@@ -20,6 +20,17 @@
       },
       "category": "developer-tools",
       "tags": ["github", "workflow", "automation"]
+    },
+    {
+      "name": "toolbox",
+      "source": "./plugins/toolbox",
+      "description": "General-purpose utility skills — web search, fetching, and more",
+      "version": "0.1.0",
+      "author": {
+        "name": "Soulike"
+      },
+      "category": "utilities",
+      "tags": ["web", "search", "fetch", "utilities"]
     }
   ]
 }
