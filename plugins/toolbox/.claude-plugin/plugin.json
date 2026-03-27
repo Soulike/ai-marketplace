@@ -1,0 +1,8 @@
+{
+  "name": "toolbox",
+  "description": "General-purpose utility skills — web search, fetching, and more",
+  "version": "0.1.0",
+  "author": {
+    "name": "Soulike"
+  }
+}
