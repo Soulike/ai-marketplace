@@ -1,0 +1,8 @@
+{
+  "name": "github-workflow",
+  "description": "GitHub workflow automation — Actions, PRs, issues, and more",
+  "version": "0.1.0",
+  "author": {
+    "name": "Soulike"
+  }
+}

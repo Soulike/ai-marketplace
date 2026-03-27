@@ -11,15 +11,15 @@
   },
   "plugins": [
     {
-      "name": "hello-world",
-      "source": "./plugins/hello-world",
-      "description": "A simple starter plugin with a /hello command",
+      "name": "github-workflow",
+      "source": "./plugins/github-workflow",
+      "description": "GitHub workflow automation — Actions, PRs, issues, and more",
       "version": "0.1.0",
       "author": {
         "name": "Soulike"
       },
-      "category": "examples",
-      "tags": ["starter", "example"]
+      "category": "developer-tools",
+      "tags": ["github", "workflow", "automation"]
     }
   ]
 }
