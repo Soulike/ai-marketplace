@@ -1,0 +1,9 @@
+{
+  "name": "hello-world",
+  "description": "A simple starter plugin with a /hello command",
+  "version": "0.1.0",
+  "author": {
+    "name": "Soulike"
+  },
+  "commands": ["./commands/"]
+}

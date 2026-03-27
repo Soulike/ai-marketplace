@@ -1,0 +1,25 @@
+{
+  "name": "ai-marketplace",
+  "owner": {
+    "name": "Soulike",
+    "email": "soulike@qq.com"
+  },
+  "metadata": {
+    "description": "Personal AI plugin marketplace for Claude Code",
+    "version": "0.1.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "hello-world",
+      "source": "./plugins/hello-world",
+      "description": "A simple starter plugin with a /hello command",
+      "version": "0.1.0",
+      "author": {
+        "name": "Soulike"
+      },
+      "category": "examples",
+      "tags": ["starter", "example"]
+    }
+  ]
+}
