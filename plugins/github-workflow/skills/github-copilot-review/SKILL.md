@@ -29,6 +29,7 @@ NEVER merge the PR. The PR must always be merged by the user manually. This skil
 6. For each new comment  →  triage → fix → commit & push → reply & resolve
 7. Re-request Copilot review (back to step 4)
 8. Stop when Copilot has no new comments or no fix is needed
+9. Check CI status  →  if your changes broke CI, fix and verify
 ```
 
 ### Step 1 — Confirm with the User
@@ -91,7 +92,7 @@ gh api repos/{owner}/{repo}/pulls/<PR>/reviews \
 Possible terminal states: `COMMENTED`, `APPROVED`, `CHANGES_REQUESTED`.
 
 **Polling strategy:**
-- Wait 15 seconds between checks.
+- Wait 60 seconds between checks.
 - After 5 minutes with no review appearing, inform the user that Copilot may not be enabled for the repo. Stop.
 
 **Also check the summary issue comment** — each Copilot review produces exactly one **issue comment** on the PR that summarizes the review and states how many review comments it left:
@@ -104,7 +105,7 @@ Keep track of how many Copilot summary comments you've already seen. Poll until 
 
 **Once the review is complete:**
 
-1. If the review state is `APPROVED` and the summary says 0 review comments, the PR is clean — report success and stop.
+1. If the review state is `APPROVED` and the summary says 0 review comments, the PR has no outstanding review issues — proceed to **Step 8** for CI verification before finishing.
 2. Otherwise, fetch the inline review comments:
    ```bash
    gh api repos/{owner}/{repo}/pulls/<PR>/comments \
@@ -209,15 +210,49 @@ After all current comments have been addressed:
 
 ### Step 8 — Termination
 
-Stop the loop when any of these is true:
-- Copilot posts no new comments after the latest push.
-- All new comments are ones you decided to skip (no code changes were made in this iteration).
-- You have completed 20 iterations of the loop (safety limit to avoid infinite cycles).
+**You MUST keep looping until one of the following conditions is met. Do not stop early for any other reason.**
+
+The ONLY acceptable reasons to exit the loop are:
+
+1. **Copilot posts no new comments** — After you re-requested review in Step 7 and the new review completed, Copilot left zero new review comments (i.e., the review state is `APPROVED` or `COMMENTED` with 0 new inline comments). This means the code is clean from Copilot's perspective.
+2. **No code changes in this iteration** — Copilot posted new comments, but you triaged every single one as "skip" and made zero code changes. Since no code changed, re-requesting review would produce the same comments.
+3. **Safety limit reached** — You have completed 20 iterations of the review-fix cycle. Stop to avoid infinite loops.
+
+**If none of the above conditions are met, you MUST continue the loop — go back to Step 4.**
+
+Common mistakes to avoid:
+- Do NOT stop because "most comments are addressed" — ALL comments in the current iteration must be processed.
+- Do NOT stop because you "think" the PR is good enough — let Copilot confirm by posting no new comments.
+- Do NOT stop after fixing comments without re-requesting review — you must verify via a new Copilot review cycle that no further issues were introduced.
+- Do NOT stop just because the fixes seem trivial — always complete the full cycle.
+
+#### CI Check
+
+Before declaring the PR clean, verify that CI is passing. Check the status of the latest commit's checks:
+
+```bash
+gh pr checks <PR>
+```
+
+- **All checks pass (or no checks exist):** CI is green — proceed to the summary.
+- **Checks are still running:** Poll every 60 seconds until all checks complete (timeout after 10 minutes — if still running, report the status to the user and stop).
+- **Any check fails:** Investigate whether the failure was caused by changes made during the Copilot review fix loop (i.e., your commits in this session). Compare the failing checks against the diff you introduced:
+  1. **Read the CI logs** to understand what failed:
+     ```bash
+     gh run view <run-id> --log-failed
+     ```
+  2. **If the failure is caused by your changes** (e.g., a test you broke, a lint error you introduced, a type error from your edit): fix the issue, commit, and push. Then re-run `gh pr checks <PR>` to verify CI passes. Do **not** re-enter the Copilot review loop — the goal here is just to ensure the PR is not left in a broken state.
+  3. **If the failure is unrelated to your changes** (e.g., a flaky test, a pre-existing issue, an infrastructure/environment problem): report the failing checks to the user and stop. Do not attempt to fix CI failures you did not cause.
+
+> **Note:** A PR with no CI checks configured is treated as passing.
+
+#### Summary
 
 When done, summarize what happened:
 - How many comments were fixed.
 - How many comments were skipped (and why).
 - How many review cycles it took.
+- CI status (passed / no CI / failed with details — and whether failures were caused by this session's changes).
 - The final state of the PR.
 
 ## Important Notes
