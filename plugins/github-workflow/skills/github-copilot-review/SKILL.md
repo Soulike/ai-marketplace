@@ -93,7 +93,7 @@ Possible terminal states: `COMMENTED`, `APPROVED`, `CHANGES_REQUESTED`.
 
 **Polling strategy:**
 - Wait 60 seconds between checks.
-- After 5 minutes with no review appearing, inform the user that Copilot may not be enabled for the repo. Stop.
+- After 10 minutes with no review appearing, inform the user that Copilot may not be enabled for the repo. Stop.
 
 **Also check the summary issue comment** — each Copilot review produces exactly one **issue comment** on the PR that summarizes the review and states how many review comments it left:
 
